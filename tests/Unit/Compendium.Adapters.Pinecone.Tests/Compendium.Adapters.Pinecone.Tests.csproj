@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <AssemblyName>Compendium.Adapters.Sample.Tests</AssemblyName>
-    <RootNamespace>Compendium.Adapters.Sample.Tests</RootNamespace>
+    <AssemblyName>Compendium.Adapters.Pinecone.Tests</AssemblyName>
+    <RootNamespace>Compendium.Adapters.Pinecone.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\Compendium.Adapters.Sample\Compendium.Adapters.Sample.csproj" />
+    <ProjectReference Include="..\..\..\src\Compendium.Adapters.Pinecone\Compendium.Adapters.Pinecone.csproj" />
   </ItemGroup>
 
   <ItemGroup>

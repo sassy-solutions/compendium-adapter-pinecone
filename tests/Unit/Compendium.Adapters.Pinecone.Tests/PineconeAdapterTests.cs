@@ -1,33 +1,33 @@
 // -----------------------------------------------------------------------
-// <copyright file="SampleAdapterTests.cs" company="Sassy Solutions">
+// <copyright file="PineconeAdapterTests.cs" company="Sassy Solutions">
 //     Copyright (c) 2026 Sassy Solutions. Licensed under the MIT License.
 //     See LICENSE in the project root for license information.
 // </copyright>
 // -----------------------------------------------------------------------
 
-using Compendium.Adapters.Sample.Options;
+using Compendium.Adapters.Pinecone.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Compendium.Adapters.Sample.Tests;
+namespace Compendium.Adapters.Pinecone.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="SampleAdapter"/>.
+/// Unit tests for <see cref="PineconeAdapter"/>.
 /// Demonstrates the canonical xUnit + FluentAssertions + NSubstitute pattern.
 /// </summary>
-public class SampleAdapterTests
+public class PineconeAdapterTests
 {
-    private readonly SampleOptions _options = new() { BaseUrl = "https://api.example.com", ApiKey = "k1" };
-    private readonly ILogger<SampleAdapter> _logger = Substitute.For<ILogger<SampleAdapter>>();
+    private readonly PineconeOptions _options = new() { BaseUrl = "https://api.example.com", ApiKey = "k1" };
+    private readonly ILogger<PineconeAdapter> _logger = Substitute.For<ILogger<PineconeAdapter>>();
 
     [Fact]
     public void Constructor_NullOptions_Throws()
     {
         // Arrange
-        IOptions<SampleOptions>? options = null;
+        IOptions<PineconeOptions>? options = null;
 
         // Act
-        var act = () => new SampleAdapter(options!, _logger);
+        var act = () => new PineconeAdapter(options!, _logger);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();
@@ -37,10 +37,10 @@ public class SampleAdapterTests
     public void Constructor_NullLogger_Throws()
     {
         // Arrange
-        ILogger<SampleAdapter>? logger = null;
+        ILogger<PineconeAdapter>? logger = null;
 
         // Act
-        var act = () => new SampleAdapter(Microsoft.Extensions.Options.Options.Create(_options), logger!);
+        var act = () => new PineconeAdapter(Microsoft.Extensions.Options.Options.Create(_options), logger!);
 
         // Assert
         act.Should().Throw<ArgumentNullException>();
@@ -50,7 +50,7 @@ public class SampleAdapterTests
     public async Task EchoAsync_HappyPath_ReturnsPrefixedPayload()
     {
         // Arrange
-        var adapter = new SampleAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
+        var adapter = new PineconeAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
 
         // Act
         var actual = await adapter.EchoAsync("hello");
@@ -65,7 +65,7 @@ public class SampleAdapterTests
     public async Task EchoAsync_NullOrWhitespacePayload_Throws(string payload)
     {
         // Arrange
-        var adapter = new SampleAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
+        var adapter = new PineconeAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
 
         // Act
         var act = () => adapter.EchoAsync(payload);
@@ -78,7 +78,7 @@ public class SampleAdapterTests
     public async Task EchoAsync_NullPayload_Throws()
     {
         // Arrange
-        var adapter = new SampleAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
+        var adapter = new PineconeAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
 
         // Act
         var act = () => adapter.EchoAsync(null!);
@@ -91,7 +91,7 @@ public class SampleAdapterTests
     public async Task EchoAsync_AlreadyCancelledToken_Throws()
     {
         // Arrange
-        var adapter = new SampleAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
+        var adapter = new PineconeAdapter(Microsoft.Extensions.Options.Options.Create(_options), _logger);
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 

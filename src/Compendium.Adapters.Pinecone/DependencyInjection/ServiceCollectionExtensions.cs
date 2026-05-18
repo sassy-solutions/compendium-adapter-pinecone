@@ -5,59 +5,59 @@
 // </copyright>
 // -----------------------------------------------------------------------
 
-using Compendium.Adapters.Sample.Options;
+using Compendium.Adapters.Pinecone.Options;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Compendium.Adapters.Sample.DependencyInjection;
+namespace Compendium.Adapters.Pinecone.DependencyInjection;
 
 /// <summary>
-/// DI registration helpers for the Sample adapter.
+/// DI registration helpers for the Pinecone adapter.
 /// </summary>
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="SampleAdapter"/> and its options.
+    /// Registers <see cref="PineconeAdapter"/> and its options.
     /// </summary>
     /// <param name="services">DI container.</param>
-    /// <param name="configuration">Source configuration; section <see cref="SampleOptions.SectionName"/> is bound.</param>
+    /// <param name="configuration">Source configuration; section <see cref="PineconeOptions.SectionName"/> is bound.</param>
     /// <returns>The same <paramref name="services"/> for chaining.</returns>
-    public static IServiceCollection AddCompendiumSampleAdapter(
+    public static IServiceCollection AddCompendiumPineconeAdapter(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        services.AddOptions<SampleOptions>()
-            .Bind(configuration.GetSection(SampleOptions.SectionName))
+        services.AddOptions<PineconeOptions>()
+            .Bind(configuration.GetSection(PineconeOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton<SampleAdapter>();
+        services.AddSingleton<PineconeAdapter>();
 
         return services;
     }
 
     /// <summary>
-    /// Registers <see cref="SampleAdapter"/> with an inline configuration callback.
+    /// Registers <see cref="PineconeAdapter"/> with an inline configuration callback.
     /// </summary>
     /// <param name="services">DI container.</param>
-    /// <param name="configure">Callback to mutate <see cref="SampleOptions"/>.</param>
+    /// <param name="configure">Callback to mutate <see cref="PineconeOptions"/>.</param>
     /// <returns>The same <paramref name="services"/> for chaining.</returns>
-    public static IServiceCollection AddCompendiumSampleAdapter(
+    public static IServiceCollection AddCompendiumPineconeAdapter(
         this IServiceCollection services,
-        Action<SampleOptions> configure)
+        Action<PineconeOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddOptions<SampleOptions>()
+        services.AddOptions<PineconeOptions>()
             .Configure(configure)
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton<SampleAdapter>();
+        services.AddSingleton<PineconeAdapter>();
 
         return services;
     }

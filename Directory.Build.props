@@ -14,8 +14,8 @@
     <Company>Sassy Solutions</Company>
     <Copyright>Copyright (c) 2026 Sassy Solutions</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/sassy-solutions/compendium-adapter-sample</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/sassy-solutions/compendium-adapter-sample.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/sassy-solutions/compendium-adapter-pinecone</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sassy-solutions/compendium-adapter-pinecone.git</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
