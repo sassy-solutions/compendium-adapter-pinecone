@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -9,6 +9,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compendium.Adapters.Pinecone", "src\Compendium.Adapters.Pinecone\Compendium.Adapters.Pinecone.csproj", "{A1A1A1A1-0000-0000-0000-000000000001}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compendium.Adapters.Pinecone.Tests", "tests\Unit\Compendium.Adapters.Pinecone.Tests\Compendium.Adapters.Pinecone.Tests.csproj", "{A1A1A1A1-0000-0000-0000-000000000002}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Integration", "Integration", "{8577C890-77F4-401C-8CF5-201E710C0915}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compendium.Adapters.Pinecone.IntegrationTests", "tests\Integration\Compendium.Adapters.Pinecone.IntegrationTests\Compendium.Adapters.Pinecone.IntegrationTests.csproj", "{21586BEE-9764-44B7-8065-C93520B0D578}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{FDCC3E36-D9A7-4FB0-A2B4-759761425A1A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "01-managed-rag", "samples\01-managed-rag\01-managed-rag.csproj", "{3D459F62-A598-4259-AE11-44AEE9760E4C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,9 +32,20 @@ Global
 		{A1A1A1A1-0000-0000-0000-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1A1A1A1-0000-0000-0000-000000000002}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1A1A1A1-0000-0000-0000-000000000002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{21586BEE-9764-44B7-8065-C93520B0D578}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{21586BEE-9764-44B7-8065-C93520B0D578}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{21586BEE-9764-44B7-8065-C93520B0D578}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{21586BEE-9764-44B7-8065-C93520B0D578}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D459F62-A598-4259-AE11-44AEE9760E4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D459F62-A598-4259-AE11-44AEE9760E4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D459F62-A598-4259-AE11-44AEE9760E4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D459F62-A598-4259-AE11-44AEE9760E4C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A1A1A1A1-0000-0000-0000-000000000001} = {D6C5C0A8-4A5A-4A5A-9C4A-1F4A4F4F4F01}
 		{A1A1A1A1-0000-0000-0000-000000000002} = {D6C5C0A8-4A5A-4A5A-9C4A-1F4A4F4F4F02}
+		{8577C890-77F4-401C-8CF5-201E710C0915} = {D6C5C0A8-4A5A-4A5A-9C4A-1F4A4F4F4F02}
+		{21586BEE-9764-44B7-8065-C93520B0D578} = {8577C890-77F4-401C-8CF5-201E710C0915}
+		{3D459F62-A598-4259-AE11-44AEE9760E4C} = {FDCC3E36-D9A7-4FB0-A2B4-759761425A1A}
 	EndGlobalSection
 EndGlobal

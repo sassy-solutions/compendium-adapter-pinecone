@@ -1,118 +1,163 @@
-# `template-compendium-adapter-dotnet`
+# `compendium-adapter-pinecone`
 
-Starter for a new **Compendium** adapter (.NET 9, single-vendor, lives in its own repository).
+Pinecone adapter for the [Compendium](https://github.com/sassy-solutions/compendium) framework. Implements `IVectorStore` from `Compendium.Abstractions.VectorStore` over [Pinecone's](https://www.pinecone.io) managed serverless vector database via a hand-rolled `HttpClient` — no vendor SDK.
 
-Aligns with [ADR 0006](../../docs/adr/0006-multi-repo-adapter-split.md) (split heavy adapters into per-adapter repositories). Encodes the [`compendium-test-author`](.claude/skills/compendium-test-author/SKILL.md) skill so `/tests` and `/coverage` work out of the box.
+Built from [`template-compendium-adapter-dotnet`](https://github.com/sassy-solutions/template-compendium-adapter-dotnet). Companion to [`compendium-adapter-pgvector`](https://github.com/sassy-solutions/compendium-adapter-pgvector) and [`compendium-adapter-qdrant`](https://github.com/sassy-solutions/compendium-adapter-qdrant) — same abstraction, same tenant isolation posture, same Result-pattern error handling.
 
-## What you get
+## What's in this package
 
-```
-.
-├── src/Compendium.Adapters.Pinecone/        — the adapter project (rename Pinecone → <Vendor>)
-│   ├── DependencyInjection/
-│   │   └── ServiceCollectionExtensions.cs
-│   ├── Options/PineconeOptions.cs
-│   └── PineconeAdapter.cs                   — illustrates the IAdapter (or any port) shape
-├── tests/Unit/Compendium.Adapters.Pinecone.Tests/
-│   ├── DependencyInjection/ServiceCollectionExtensionsTests.cs
-│   ├── Options/PineconeOptionsTests.cs
-│   └── GlobalUsings.cs
-├── .github/workflows/ci.yml               — build + test + 90% coverage gate
-├── .claude/skills/compendium-test-author/SKILL.md
-├── .claude/commands/{tests,coverage}.md
-├── .config/dotnet-tools.json              — pins ReportGenerator
-├── Directory.Build.props
-├── Directory.Packages.props               — central package management
-├── Compendium.Adapters.Pinecone.sln
-├── global.json                            — pins .NET 9 SDK
-└── LICENSE
+| Component | Implements | Purpose |
+|---|---|---|
+| `PineconeVectorStore` | `IVectorStore` | Embedding storage + ANN similarity search against Pinecone's two-plane REST API |
+| `PineconeOptions` | — | API key, control-plane URL, cloud / region, tenancy mode, request timeout |
+| `TenantIdentifier` | — | Validates tenant ids against a strict alphanumeric+dash+underscore regex before any wire bind |
+| `ServiceCollectionExtensions` | — | DI helpers (`AddCompendiumPinecone(...)`) |
+
+## Install
+
+```bash
+dotnet add package Compendium.Adapters.Pinecone
 ```
 
-## Conventions enforced (copy from Compendium framework)
+## Quick start
+
+Sign up for a free Pinecone account at [app.pinecone.io](https://app.pinecone.io). Free-tier serverless gives you one index in `us-east-1` on AWS — enough to dogfood the round-trip.
+
+```csharp
+using Compendium.Abstractions.VectorStore;
+using Compendium.Abstractions.VectorStore.Models;
+using Compendium.Adapters.Pinecone.DependencyInjection;
+using Compendium.Adapters.Pinecone.Options;
+
+services.AddCompendiumPinecone(o =>
+{
+    o.ApiKey = builder.Configuration["Pinecone:ApiKey"]!; // required
+    o.Cloud  = PineconeCloud.Aws;
+    o.Region = "us-east-1";
+});
+
+// IVectorStore is now resolvable from DI.
+var store = services.BuildServiceProvider().GetRequiredService<IVectorStore>();
+await store.EnsureCollectionAsync("documents", dimension: 1536, DistanceMetric.Cosine);
+await store.UpsertAsync("documents", new[]
+{
+    new VectorRecord("doc-1", embedding, metadata, tenantId: "tenant-1"),
+});
+
+var matches = await store.SearchAsync(
+    "documents",
+    queryEmbedding,
+    topK: 5,
+    VectorFilter.Eq("category", "support").ForTenant("tenant-1"));
+```
+
+A runnable example lives under [`samples/01-managed-rag`](samples/01-managed-rag/Program.cs).
+
+## Configuration options
+
+Bind to the `Compendium:Adapters:Pinecone` section, or pass an inline callback.
+
+| Option | Default | Purpose |
+|---|---|---|
+| `ApiKey` | _(required)_ | Sent as the `Api-Key` header on every request. |
+| `ControlPlaneBaseUrl` | `https://api.pinecone.io` | Pinecone control plane (index lifecycle). |
+| `Cloud` | `Aws` | Serverless cloud provider (`Aws` / `Gcp` / `Azure`). |
+| `Region` | `us-east-1` | Serverless region. |
+| `TenancyMode` | `Namespace` | How tenant ids are propagated to Pinecone (`Namespace` or `Metadata`). |
+| `IndexPrefix` | _(empty)_ | Prefix applied to every index name on the wire (e.g. `dev-`, `staging-`). |
+| `Timeout` | `30s` | Per-request HTTP timeout. |
+
+## The two-plane architecture (read this once)
+
+Pinecone splits its REST API into two HTTP planes:
+
+| Plane | Host | Used for |
+|---|---|---|
+| **Control** | `api.pinecone.io` (fixed) | `GET /indexes/{name}`, `POST /indexes` — index lifecycle. |
+| **Data** | `<index>-<project>.svc.<region>-<cloud>.pinecone.io` (per-index, returned by control) | `POST /vectors/upsert`, `POST /vectors/delete`, `POST /query` — read/write. |
+
+`PineconeVectorStore` resolves the per-index data-plane host on first use via `GET /indexes/{name}` and caches it in-process. Subsequent reads / writes go straight to the data plane — one extra round-trip on cold start, zero overhead afterwards. `EnsureCollectionAsync` pre-seeds the cache when it succeeds, so the typical flow (`ensure` → `upsert` → `search`) makes exactly one control-plane call.
+
+If you delete an index outside the adapter, the cached host becomes stale — restart the process or let the data-plane 404 propagate as `VectorStore.CollectionNotFound`.
+
+## Tenancy
+
+Pinecone offers two patterns for multi-tenant isolation. The adapter exposes both via `PineconeOptions.TenancyMode`.
+
+### `Namespace` mode (default — recommended)
+
+Each tenant id maps to a Pinecone [namespace](https://docs.pinecone.io/guides/indexes/use-namespaces). Every data-plane call includes a `namespace` field on the request body. This is the cleanest isolation Pinecone offers:
+
+- Reads and writes to one namespace are physically partitioned from another.
+- Per-namespace point counts are exposed in Pinecone's stats endpoint.
+- No metadata-filter cost on every query.
+
+Use this mode when **tenant cardinality is low to moderate** (Pinecone recommends ≤ 10,000 namespaces per index — past that, namespace overhead starts to matter).
+
+### `Metadata` mode
+
+The tenant id is stored in the record's `metadata` under the reserved `tenant_id` key. Every search emits an `$eq` filter on that key. Use this mode when:
+
+- You have **very high tenant cardinality** (hundreds of thousands of tenants) and namespaces would blow past Pinecone's recommended limits.
+- You need cross-tenant searches in addition to per-tenant searches — switching modes per-call isn't supported, but a Metadata-mode index lets you omit the filter to query the whole index.
+
+Trade-off: queries are slower (Pinecone applies the metadata filter on the hot path), and stats don't break down per-tenant.
+
+### Both modes
+
+- `TenantIdentifier.IsValid` rejects anything outside `[a-zA-Z0-9_-]{1,255}` before serialisation — defence-in-depth against tenant-id-driven injection. Mirrors the validator used by [`compendium-adapter-pgvector`](https://github.com/sassy-solutions/compendium-adapter-pgvector) and [`compendium-adapter-qdrant`](https://github.com/sassy-solutions/compendium-adapter-qdrant).
+- Tenanted deletes only touch the tenant's vectors. Cross-tenant deletes-by-id are impossible by construction.
+
+## Distance metrics
+
+| `DistanceMetric` | Pinecone `metric` label |
+|---|---|
+| `Cosine` | `cosine` |
+| `L2` | `euclidean` |
+| `InnerProduct` | `dotproduct` |
+
+The metric is fixed at `EnsureCollectionAsync` time. Trying to recreate an existing index with a different dimension or metric returns `VectorStore.DimensionMismatch` / `Pinecone.MetricMismatch`.
+
+## Production checklist
+
+- **TLS** — automatic. Every Pinecone endpoint is HTTPS.
+- **API key rotation** — never check the API key into source. Rotate via your secret store (we read it via `IOptions<PineconeOptions>`, so any provider works). After rotation you must restart the process: the key is bound to the singleton `HttpClient` on first construction.
+- **Region selection** — Pinecone serverless free-tier is `us-east-1`/AWS only. For paid tiers, pick a region close to your application servers; cross-region latency dominates query time for small vectors.
+- **Free-tier limits** — one serverless index, 100K vectors / 4 GB write-units / 1M read-units per month. Plenty for prototyping, not enough for prod.
+- **Index name rules** — Pinecone limits index names to lowercase `[a-z0-9-]`, 1–45 chars, no leading or trailing dash. The adapter enforces the same rules and returns `Pinecone.InvalidIndex` on violation.
+- **Eventual consistency** — Pinecone serverless reads are eventually consistent. Upserts may take a few seconds to be visible to queries. The sample sleeps 3 seconds before searching — adjust for your workload.
+- **Pooled `HttpClient`** — the DI extension registers `PineconeVectorStore` via `IHttpClientFactory`, so HTTP connections are pooled across requests by default.
+- **Namespace vs metadata trade-off** — start with namespace mode. Switch to metadata mode only when you've measured namespace overhead at scale.
+
+## Versioning
+
+This package is published as `Compendium.Adapters.Pinecone`. Versions are driven by git tags via [MinVer](https://github.com/adamralph/minver) — see [`docs/RELEASE.md`](docs/RELEASE.md). The release tag is set by the orchestrator after merge to `main`.
+
+## Repository conventions
 
 | Aspect | Choice |
 |---|---|
-| Test framework | xUnit 2.9.3 |
-| Assertions | FluentAssertions 6.12.1 — never `Assert.*` |
-| Mocks | NSubstitute 5.1.0 — never Moq |
-| Coverage | coverlet.collector 6.0.2 + ReportGenerator (local tool) |
-| Result pattern | `Result<T>` from `Compendium.Abstractions` (NuGet) |
-| Async | `async Task` + cancellation tokens — never `Thread.Sleep`, never `.Result` |
-| Test naming | `{SUT}Tests` / `{Method}_{Scenario}_{Expected}` |
-| Test layout | AAA explicit (`// Arrange / // Act / // Assert`) |
-| File header | Sassy Solutions copyright block |
-| HTTP mocking (when applicable) | `RichardSzalay.MockHttp` 7.0.0 |
-| Container fixtures (integration) | `Testcontainers` 4.11.0 + `IAsyncLifetime` + `[RequiresDockerFact]` |
-| CI gate | ≥ 90 % line coverage on the unit-testable surface (DB-bound types may be exempted with documented reason) |
+| Target | .NET 9, C# 13 |
+| HTTP | Hand-rolled `HttpClient` + `System.Text.Json` (camelCase naming policy) |
+| Test framework | xUnit 2.9.3 + FluentAssertions 6.12.1 + NSubstitute 5.1.0 |
+| HTTP mocking | [`RichardSzalay.MockHttp`](https://github.com/richardszalay/mockhttp) 7.0.0 |
+| Integration tests | Live against the real Pinecone API, gated on `PINECONE_API_KEY` (cloud-only — no Testcontainer) |
+| Coverage gate | ≥ 90 % line coverage on the unit-testable surface; integration suite covers wire-bound paths |
+| Result pattern | `Result<T>` from `Compendium.Core` |
 
-## How to scaffold a new adapter
+## Build & test locally
 
 ```bash
-# 1. Pick a vendor name (use PascalCase: Stripe, PostgreSQL, Redis…)
-export VENDOR=Stripe
+# Unit tests — no Pinecone account required.
+dotnet test --filter "FullyQualifiedName!~IntegrationTests"
 
-# 2. Copy the template to a new directory next to your Compendium clone
-cp -r templates/adapter-dotnet ../compendium-adapter-${VENDOR,,}
-cd ../compendium-adapter-${VENDOR,,}
-
-# 3. Find-and-replace placeholders (BSD sed on macOS — adapt for GNU sed)
-find . -type f \( -name '*.cs' -o -name '*.csproj' -o -name '*.sln' -o -name '*.md' -o -name '*.yml' -o -name '*.json' -o -name '*.props' \) -exec sed -i '' -e "s/Pinecone/${VENDOR}/g" -e "s/pinecone/${VENDOR,,}/g" {} +
-
-# 4. Rename folders/files
-git mv src/Compendium.Adapters.Pinecone              src/Compendium.Adapters.${VENDOR}
-git mv src/Compendium.Adapters.${VENDOR}/Compendium.Adapters.Pinecone.csproj \
-       src/Compendium.Adapters.${VENDOR}/Compendium.Adapters.${VENDOR}.csproj
-git mv src/Compendium.Adapters.${VENDOR}/PineconeAdapter.cs                   \
-       src/Compendium.Adapters.${VENDOR}/${VENDOR}Adapter.cs
-git mv src/Compendium.Adapters.${VENDOR}/Options/PineconeOptions.cs           \
-       src/Compendium.Adapters.${VENDOR}/Options/${VENDOR}Options.cs
-
-git mv tests/Unit/Compendium.Adapters.Pinecone.Tests           tests/Unit/Compendium.Adapters.${VENDOR}.Tests
-git mv tests/Unit/Compendium.Adapters.${VENDOR}.Tests/Compendium.Adapters.Pinecone.Tests.csproj \
-       tests/Unit/Compendium.Adapters.${VENDOR}.Tests/Compendium.Adapters.${VENDOR}.Tests.csproj
-git mv tests/Unit/Compendium.Adapters.${VENDOR}.Tests/Options/PineconeOptionsTests.cs \
-       tests/Unit/Compendium.Adapters.${VENDOR}.Tests/Options/${VENDOR}OptionsTests.cs
-
-mv Compendium.Adapters.Pinecone.sln Compendium.Adapters.${VENDOR}.sln
-
-# 5. Initialise git and verify build
-git init
-git add .
-dotnet build -c Release
-dotnet test  -c Release
+# Integration tests — needs a Pinecone API key on a free-tier or higher account.
+export PINECONE_API_KEY="..."
+dotnet test --filter "FullyQualifiedName~IntegrationTests"
 ```
 
-## What you still need to do per repo
-
-After scaffolding :
-
-- **Author the actual adapter code.** Replace `PineconeAdapter` with the real implementation of whatever port (`IEventStore`, `IIdentityProvider`, `IBillingProvider`, `IEmailSender`, …) you're filling.
-- **NuGet publishing.** Add `NUGET_API_KEY` to repo secrets ; the included `release.yml` (TODO — add when first needed) packs and pushes on `v*` tags.
-- **Branch protection.** Require `build-test` (CI), at least one review, no force-push to `main`.
-- **Renovate or Dependabot.** Renovate config at `renovate.json` — track Compendium NuGets so a framework release auto-PRs the adapter. Dependabot for npm-style scheduled dep bumps.
-- **Integration tests** (optional but recommended for adapters with external systems). Add `tests/Integration/Compendium.Adapters.<Vendor>.IntegrationTests/` with `Testcontainers` if needed. Keep them out of the unit CI job.
-
-## Local-dev mode (when you're modifying both framework and adapter)
-
-Edit `Directory.Packages.props` to add a project reference instead of the NuGet :
-
-```xml
-<ItemGroup Condition="'$(LinkLocalCompendium)' == 'true'">
-  <PackageReference Remove="Compendium.Abstractions" />
-  <ProjectReference Include="../compendium/src/Abstractions/Compendium.Abstractions/Compendium.Abstractions.csproj" />
-</ItemGroup>
-```
-
-Then `dotnet build -p:LinkLocalCompendium=true`.
-
-## Common pitfalls (read before pushing)
-
-- **Broken `Compendium.sln`** : every `Project("{...}")` MUST have a matching `EndProject` on the next non-empty line, and every GUID listed in `Project(...)` MUST appear in the `GlobalSection(ProjectConfigurationPlatforms)` (4 `.Debug|Any CPU.*` + `.Release|Any CPU.*` lines). Linux CI is strict ; macOS is lenient and will mask this bug. **Always** use `dotnet sln add` / `dotnet sln remove` instead of hand-editing the sln. Verify with `dotnet sln list && dotnet build -c Release` before pushing.
-- **`gh pr merge` from a detached worktree** : fails opaquely with "could not determine current branch". Always run merges from a checkout that's on a named branch (typically `main`).
-- **MinVer tag prefix** : pinned to `v` in `Directory.Build.props`. The first tag must continue the version sequence of the package's previous releases (e.g. if `Compendium.Adapters.Stripe` was last published as `1.0.0-preview.8` from the framework, the first tag here is `v1.0.0-preview.9`).
-- **No `--no-verify`, no `--force-push`** (use `--force-with-lease` instead). No version bumps in `Directory.Packages.props` outside of Renovate-managed PRs.
-- **Skill / commands** : `.claude/skills/compendium-test-author/SKILL.md` and `.claude/commands/{tests,coverage}.md` ship pre-baked. `/tests` and `/coverage` work out of the box in Claude Code.
+The integration suite covers idempotent ensure, namespaced upsert/search/delete round-trip, and collection-not-found behaviour against a live Pinecone serverless index. It skips cleanly when `PINECONE_API_KEY` is absent via the `[RequiresPineconeFact]` attribute.
 
 ## License
 
-MIT — same as Compendium itself.
+[MIT](LICENSE) — Copyright © 2026 Sassy Solutions.
