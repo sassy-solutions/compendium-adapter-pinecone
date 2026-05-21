@@ -12,7 +12,7 @@
 
   <!-- Build-time tooling -->
   <ItemGroup>
-    <PackageVersion Include="MinVer" Version="6.0.0" />
+    <PackageVersion Include="MinVer" Version="7.0.0" />
   </ItemGroup>
 
   <!-- Production runtime -->
